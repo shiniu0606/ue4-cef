@@ -1,0 +1,40 @@
+diff --git net/base/network_delegate.h net/base/network_delegate.h
+index f602f3c..091f53e 100644
+--- net/base/network_delegate.h
++++ net/base/network_delegate.h
+@@ -16,6 +16,7 @@
+ #include "net/base/completion_callback.h"
+ #include "net/base/net_export.h"
+ #include "net/cookies/canonical_cookie.h"
++#include "net/filter/source_stream.h"
+ #include "net/proxy/proxy_retry_info.h"
+ 
+ class GURL;
+@@ -112,6 +113,10 @@ class NET_EXPORT NetworkDelegate : public base::NonThreadSafe {
+       const GURL& target_url,
+       const GURL& referrer_url) const;
+ 
++  virtual std::unique_ptr<SourceStream> CreateSourceStream(
++      net::URLRequest* request,
++      std::unique_ptr<SourceStream> upstream) { return upstream; }
++
+  private:
+   // This is the interface for subclasses of NetworkDelegate to implement. These
+   // member functions will be called by the respective public notification
+diff --git net/url_request/url_request_job.cc net/url_request/url_request_job.cc
+index 464e920..9c729b3 100644
+--- net/url_request/url_request_job.cc
++++ net/url_request/url_request_job.cc
+@@ -500,6 +500,12 @@ void URLRequestJob::NotifyHeadersComplete() {
+     DCHECK(!source_stream_);
+     source_stream_ = SetUpSourceStream();
+ 
++    // Allow the delegate to add a downstream SourceStream for filtering.
++    if (network_delegate_ && source_stream_) {
++      source_stream_ = network_delegate_->CreateSourceStream(
++          request_, std::move(source_stream_));
++    }
++
+     if (!source_stream_) {
+       OnDone(URLRequestStatus(URLRequestStatus::FAILED,
+                               ERR_CONTENT_DECODING_INIT_FAILED),

@@ -1,0 +1,24 @@
+diff --git chrome/browser/renderer_preferences_util.cc chrome/browser/renderer_preferences_util.cc
+index 7296a04..c702d31 100644
+--- chrome/browser/renderer_preferences_util.cc
++++ chrome/browser/renderer_preferences_util.cc
+@@ -32,7 +32,8 @@
+ #include "ui/base/cocoa/defaults_utils.h"
+ #endif
+ 
+-#if defined(USE_AURA) && defined(OS_LINUX) && !defined(OS_CHROMEOS)
++#if defined(USE_AURA) && defined(OS_LINUX) && !defined(OS_CHROMEOS) && \
++    defined(ENABLE_THEMES)
+ #include "chrome/browser/themes/theme_service.h"
+ #include "chrome/browser/themes/theme_service_factory.h"
+ #include "ui/views/linux_ui/linux_ui.h"
+@@ -134,7 +135,8 @@ void UpdateFromSystemSettings(content::RendererPreferences* prefs,
+     prefs->caret_blink_interval = interval.InSecondsF();
+ #endif
+ 
+-#if defined(USE_AURA) && defined(OS_LINUX) && !defined(OS_CHROMEOS)
++#if defined(USE_AURA) && defined(OS_LINUX) && !defined(OS_CHROMEOS) && \
++    defined(ENABLE_THEMES)
+   views::LinuxUI* linux_ui = views::LinuxUI::instance();
+   if (linux_ui) {
+     if (ThemeServiceFactory::GetForProfile(profile)->UsingSystemTheme()) {

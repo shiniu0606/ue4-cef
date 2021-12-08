@@ -1,0 +1,49 @@
+diff --git content/browser/renderer_host/browser_compositor_view_mac.h content/browser/renderer_host/browser_compositor_view_mac.h
+index 1c73b7f..606f29c 100644
+--- content/browser/renderer_host/browser_compositor_view_mac.h
++++ content/browser/renderer_host/browser_compositor_view_mac.h
+@@ -51,9 +51,11 @@ class BrowserCompositorMac : public DelegatedFrameHostClient {
+ 
+   // These will not return nullptr until Destroy is called.
+   DelegatedFrameHost* GetDelegatedFrameHost();
++  ui::Layer* GetRootLayer() { return root_layer_.get(); }
+ 
+   // This may return nullptr, if this has detached itself from its
+   // ui::Compositor.
++  ui::Compositor* GetCompositor();
+   ui::AcceleratedWidgetMac* GetAcceleratedWidgetMac();
+ 
+   void DidCreateNewRendererCompositorFrameSink(
+diff --git content/browser/renderer_host/browser_compositor_view_mac.mm content/browser/renderer_host/browser_compositor_view_mac.mm
+index fba983b..8cf9629 100644
+--- content/browser/renderer_host/browser_compositor_view_mac.mm
++++ content/browser/renderer_host/browser_compositor_view_mac.mm
+@@ -202,6 +202,12 @@ BrowserCompositorMac::~BrowserCompositorMac() {
+     g_spare_recyclable_compositors.Get().clear();
+ }
+ 
++ui::Compositor* BrowserCompositorMac::GetCompositor() {
++  if (recyclable_compositor_)
++    return recyclable_compositor_->compositor();
++  return nullptr;
++}
++
+ ui::AcceleratedWidgetMac* BrowserCompositorMac::GetAcceleratedWidgetMac() {
+   if (recyclable_compositor_)
+     return recyclable_compositor_->accelerated_widget_mac();
+@@ -421,8 +427,13 @@ SkColor BrowserCompositorMac::DelegatedFrameHostGetGutterColor(
+ }
+ 
+ gfx::Size BrowserCompositorMac::DelegatedFrameHostDesiredSizeInDIP() const {
+-  NSRect bounds = [client_->BrowserCompositorMacGetNSView() bounds];
+-  return gfx::Size(bounds.size.width, bounds.size.height);
++  // View will be nil with CEF OSR.
++  NSView* view = client_->BrowserCompositorMacGetNSView();
++  if (view) {
++    NSRect bounds = [view bounds];
++    return gfx::Size(bounds.size.width, bounds.size.height);
++  }
++  return root_layer_->bounds().size();
+ }
+ 
+ bool BrowserCompositorMac::DelegatedFrameCanCreateResizeLock() const {

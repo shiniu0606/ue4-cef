@@ -1,0 +1,105 @@
+diff --git chrome/browser/ui/webui/net_internals/net_internals_ui.cc chrome/browser/ui/webui/net_internals/net_internals_ui.cc
+index 3a72ef9..303258b 100644
+--- chrome/browser/ui/webui/net_internals/net_internals_ui.cc
++++ chrome/browser/ui/webui/net_internals/net_internals_ui.cc
+@@ -531,8 +531,7 @@ void NetInternalsMessageHandler::OnGetSessionNetworkStats(
+     const base::ListValue* list) {
+   DCHECK_CURRENTLY_ON(BrowserThread::UI);
+   SendJavascriptCommand(
+-      "receivedSessionNetworkStats",
+-      chrome_browser_net::GetSessionNetworkStats(Profile::FromWebUI(web_ui())));
++      "receivedSessionNetworkStats", nullptr);
+ }
+ 
+ void NetInternalsMessageHandler::OnGetExtensionInfo(
+@@ -628,9 +627,17 @@ void NetInternalsMessageHandler::IOThreadImpl::OnRendererReady(
+ 
+   PrePopulateEventList();
+ 
+-  // Register with network stack to observe events.
+-  io_thread_->net_log()->DeprecatedAddObserver(
+-      this, net::NetLogCaptureMode::IncludeCookiesAndCredentials());
++  net::NetLog* net_log = nullptr;
++  if (io_thread_)
++    net_log = io_thread_->net_log();
++  else
++    net_log = g_browser_process->net_log();
++
++  if (net_log) {
++    // Register with network stack to observe events.
++    net_log->DeprecatedAddObserver(
++        this, net::NetLogCaptureMode::IncludeCookiesAndCredentials());
++  }
+ }
+ 
+ void NetInternalsMessageHandler::IOThreadImpl::OnGetNetInfo(
+@@ -1032,8 +1039,10 @@ void NetInternalsMessageHandler::IOThreadImpl::PrePopulateEventList() {
+   std::set<net::URLRequestContext*> contexts;
+   for (const auto& getter : context_getters_)
+     contexts.insert(getter->GetURLRequestContext());
+-  contexts.insert(io_thread_->globals()->proxy_script_fetcher_context.get());
+-  contexts.insert(io_thread_->globals()->system_request_context.get());
++  if (io_thread_) {
++    contexts.insert(io_thread_->globals()->proxy_script_fetcher_context.get());
++    contexts.insert(io_thread_->globals()->system_request_context.get());
++  }
+ 
+   // Add entries for ongoing network objects.
+   CreateNetLogEntriesForActiveObjects(contexts, this);
+diff --git content/browser/resource_context_impl.cc content/browser/resource_context_impl.cc
+index 93e2890..67a1029 100644
+--- content/browser/resource_context_impl.cc
++++ content/browser/resource_context_impl.cc
+@@ -74,6 +74,10 @@ URLDataManagerBackend* GetURLDataManagerForResourceContext(
+       context->GetUserData(kURLDataManagerBackendKeyName));
+ }
+ 
++const void* GetURLDataManagerBackendUserDataKey() {
++  return kURLDataManagerBackendKeyName;
++}
++
+ void InitializeResourceContext(BrowserContext* browser_context) {
+   ResourceContext* resource_context = browser_context->GetResourceContext();
+ 
+diff --git content/browser/resource_context_impl.h content/browser/resource_context_impl.h
+index 903cc54..56ee4ea 100644
+--- content/browser/resource_context_impl.h
++++ content/browser/resource_context_impl.h
+@@ -28,6 +28,8 @@ CONTENT_EXPORT StreamContext* GetStreamContextForResourceContext(
+ URLDataManagerBackend* GetURLDataManagerForResourceContext(
+     ResourceContext* context);
+ 
++const void* GetURLDataManagerBackendUserDataKey();
++
+ // Initialize the above data on the ResourceContext from a given BrowserContext.
+ CONTENT_EXPORT void InitializeResourceContext(BrowserContext* browser_context);
+ 
+diff --git content/browser/webui/url_data_manager.cc content/browser/webui/url_data_manager.cc
+index 0a482ad..c707073 100644
+--- content/browser/webui/url_data_manager.cc
++++ content/browser/webui/url_data_manager.cc
+@@ -151,6 +151,11 @@ void URLDataManager::UpdateWebUIDataSource(
+ }
+ 
+ // static
++const void* URLDataManager::GetUserDataKey() {
++  return kURLDataManagerKeyName;
++}
++
++// static
+ bool URLDataManager::IsScheduledForDeletion(
+     const URLDataSourceImpl* data_source) {
+   base::AutoLock lock(g_delete_lock.Get());
+diff --git content/browser/webui/url_data_manager.h content/browser/webui/url_data_manager.h
+index 5ceb74d..0c584d6 100644
+--- content/browser/webui/url_data_manager.h
++++ content/browser/webui/url_data_manager.h
+@@ -69,6 +69,8 @@ class CONTENT_EXPORT URLDataManager : public base::SupportsUserData::Data {
+       const std::string& source_name,
+       std::unique_ptr<base::DictionaryValue> update);
+ 
++  static const void* GetUserDataKey();
++
+  private:
+   friend class URLDataSourceImpl;
+   friend struct DeleteURLDataSource;
